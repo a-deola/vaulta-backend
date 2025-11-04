@@ -2,24 +2,29 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { DatabaseService } from 'src/database/database.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { Prisma, User} from 'generated/prisma/client';
+
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: DatabaseService) {}
 
-  async create(createUserDto: CreateUserDto) {
-    const { firstName, lastName, email, password } = createUserDto;
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email },
-    });
+    async findUserByEmail(email: string){
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    return user;
+  }
+
+  async create(createUserDto: CreateUserDto): Promise<User>  {
+    const { firstName, lastName, email, password, googleId, provider, profilePicture } = createUserDto;
+    const existingUser = this.findUserByEmail(email)
     if (existingUser) {
-      throw new ConflictException('Email already in use');
+        return existingUser; 
     }
     try {
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -27,15 +32,17 @@ export class UsersService {
       const accountNumber = BigInt('0x' + hash)
         .toString()
         .slice(0, 10);
-      const user = await this.prisma.user.create({
-        data: {
-          firstName,
-          lastName,
-          email,
-          password: hashedPassword,
-          accountNumber,
-        },
-      });
+     const data = {
+      firstName,
+      lastName,
+      email,
+      password: hashedPassword,
+      googleId,
+      provider: provider || 'local',
+      profilePicture,
+      accountNumber,
+    }
+    const user = await this.prisma.user.create({data})
       return user;
     } catch (error) {
       throw new InternalServerErrorException('Failed to create user', error);
@@ -50,10 +57,21 @@ export class UsersService {
   findOne(id: number) {
     return `This action returns a #${id} user`;
   }
+  
 
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
-  }
+async update(id: number, data: Partial<{
+  email: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+  refreshToken?: string;
+  refreshTokenExpiration?: Date;
+}>) {
+  return this.prisma.user.update({
+    where: { id },
+    data,
+  });
+}
 
   async remove(id: number) {
     try {
@@ -62,7 +80,11 @@ export class UsersService {
       });
       return { message: 'User deleted successfully' };
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new NotFoundException('User not found');
+      }
       console.error('Error deleting user:', error);
+      throw error;
     }
   }
 }
