@@ -15,21 +15,21 @@ datasource db {
 }
 
 model User {
-  id                     Int           @id @default(autoincrement())
-  firstName              String
-  lastName               String
-  email                  String        @unique
-  password               String
-  accountNumber          String        @unique
-  balance                Float         @default(0)
-  googleId               String?
-  provider               String?       @default("local")
-  profilePicture         String?
-  refreshToken           String?
-  refreshTokenExpiration DateTime?
-  createdAt              DateTime      @default(now())
-  sentTransactions       Transaction[] @relation("Sender")
-  receivedTransactions   Transaction[] @relation("Receiver")
+  id             Int     @id @default(autoincrement())
+  firstName      String
+  lastName       String
+  email          String  @unique
+  password       String
+  accountNumber  String  @unique
+  balance        Float   @default(0)
+  googleId       String?
+  provider       String? @default("local")
+  profilePicture String?
+  refreshToken         String?
+  expiresRefreshToken  DateTime?
+  createdAt            DateTime      @default(now())
+  sentTransactions     Transaction[] @relation("Sender")
+  receivedTransactions Transaction[] @relation("Receiver")
 }
 
 model Transaction {

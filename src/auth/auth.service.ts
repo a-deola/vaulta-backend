@@ -119,7 +119,7 @@ export class AuthService {
 
   async signIn(user: SignInDto, response: Response): Promise<LoginResponseDto> {
     const { id } = user;
-    const foundUser = await this.prisma.user.findFirst({
+    const foundUser = await this.prisma.user.findUnique({
       where: { id },
     });
     const loginTokens = await this.generateLoginTokens(user);
@@ -132,7 +132,7 @@ export class AuthService {
 
     await this.usersService.update(user.id, {
       refreshToken: await bcrypt.hash(refreshToken, 10),
-      refreshTokenExpiration: expiresRefreshToken,
+      expiresRefreshToken: expiresRefreshToken,
     });
     this.setAuthCookies(response, {
       accessToken,
@@ -155,7 +155,7 @@ export class AuthService {
         user.refreshToken,
       );
       if (!authenticated) {
-        throw new UnauthorizedException();
+        throw new UnauthorizedException("No refresh token found");
       }
       return user;
     } catch (err) {
@@ -164,14 +164,8 @@ export class AuthService {
   }
 
   async validateGoogleUser(profile: GoogleData) {
-    console.log({
-      id: process.env.GOOGLE_CLIENT_ID,
-      secret: process.env.GOOGLE_CLIENT_SECRET,
-      callback: process.env.GOOGLE_CALLBACK_URI,
-    });
-
     const existingUser = await this.usersService.findUserByEmail(profile.email);
-
+    try{
     if (existingUser) {
       if (!existingUser.googleId) {
         await this.usersService.update(existingUser.id, {
@@ -180,7 +174,6 @@ export class AuthService {
           profilePicture: profile.avatar,
         } as Partial<CreateUserDto>);
       }
-
       return existingUser;
     }
     const newUser = await this.usersService.create({
@@ -192,6 +185,9 @@ export class AuthService {
       provider: 'google',
     });
     return newUser;
+  }catch (error){
+    console.error(error)
+  }
   }
 
   async googleSignIn(user, response: Response): Promise<void> {
@@ -204,7 +200,7 @@ export class AuthService {
     } = loginTokens;
     await this.usersService.update(user.id, {
       refreshToken: await bcrypt.hash(refreshToken, 10),
-      refreshTokenExpiration: expiresRefreshToken,
+      expiresRefreshToken: expiresRefreshToken,
     });
     this.setAuthCookies(response, {
       accessToken,
